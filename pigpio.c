@@ -5588,6 +5588,9 @@ static void sigSetHandler(void)
 
    for (i=PI_MIN_SIGNUM; i<=PI_MAX_SIGNUM; i++)
    {
+      // Do not intercept SIGSEGV.
+      if (i == 11)
+         continue;
 
       memset(&new, 0, sizeof(new));
       new.sa_handler = sigHandler;
@@ -7435,6 +7438,11 @@ static int initZaps
             fdMem,
             physical
          );
+         if (dmaVirt[basePage+n] == MAP_FAILED)
+         {
+            SOFT_ERROR(PI_INIT_FAILED, "mmap (%lx, %d, _, _, %d, %x) failed", pageAdr, PAGE_SIZE, fdMem, physical);
+            return 1;
+         }
       }
       else status = 1;
 
@@ -7586,6 +7594,11 @@ static int initAllocDMAMem(void)
 
    dmaOVirt = (dmaOPage_t **)(dmaVirt + (PAGES_PER_BLOCK*bufferBlocks));
    dmaOBus  = (dmaOPage_t **)(dmaBus  + (PAGES_PER_BLOCK*bufferBlocks));
+
+   DBG(DBG_STARTUP, "dmaIVirt=%08"PRIXPTR" dmaIBus=%08"PRIXPTR,
+      (uintptr_t)dmaIVirt, (uintptr_t)dmaIBus);
+   DBG(DBG_STARTUP, "dmaOVirt=%08"PRIXPTR" dmaOBus=%08"PRIXPTR,
+      (uintptr_t)dmaOVirt, (uintptr_t)dmaOBus);
 
    if ((gpioCfg.memAllocMode == PI_MEM_ALLOC_PAGEMAP) ||
        ((gpioCfg.memAllocMode == PI_MEM_ALLOC_AUTO) &&
