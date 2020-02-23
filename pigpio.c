@@ -13521,14 +13521,50 @@ unsigned gpioHardwareRevision(void)
             rev = ntohl(tmp);
             rev &= 0xFFFFFF; /* mask out warranty bit */
          }
+        fclose(filp);
       }
-      fclose(filp);
+   }
+
+   /* Other arm64 systems might not have system/linux,revision set (notably, when
+    * booting via u-boot or via rpi-open-firmware), try to read from OTP memory
+    * via vcgencmd */
+   if (rev == 0)
+   {
+      DBG(DBG_USER, "trying to use `vcgencmd otp_dump` for revision");
+      filp = popen("vcgencmd otp_dump", "r");
+      if (filp != NULL)
+      {
+         while (fgets(buf, sizeof(buf), filp) != NULL)
+         {
+            if (strncmp("30:", buf, 3) != 0)
+            {
+               continue;
+            }
+
+            if ((sscanf(buf+3, "%x%c", &rev, &term) != 2) || (term != '\n'))
+            {
+               rev = 0;
+               continue;
+            }
+
+            // Got a revision from OTP.
+            break;
+         }
+         fclose(filp);
+      }
    }
 
    piCores = 0;
    pi_ispi = 0;
-   rev &= 0xFFFFFF; /* mask out warranty bit */
 
+   /* Fail early if revision could not be determined */
+   if (rev == 0)
+   {
+      DBG(DBG_ALWAYS, "could not determine board revision");
+      goto done;
+   }
+
+   rev &= 0xFFFFFF; /* mask out warranty bit */
    /* Decode revision code */
 
    if ((rev & 0x800000) == 0) /* old rev code */
@@ -13591,6 +13627,7 @@ unsigned gpioHardwareRevision(void)
       }
    }
 
+done:
    DBG(DBG_USER, "revision=%x", rev);
    DBG(DBG_USER, "pi_peri_phys=%x", pi_peri_phys);
    DBG(DBG_USER, "pi_dram_bus=%x", pi_dram_bus);
